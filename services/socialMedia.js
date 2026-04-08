@@ -54,14 +54,14 @@ async function runAutomation(imagePath, videoPath, caption, agentStatus) {
         await loadCookies(page, network.sessionId);
 
         await page.goto(network.url, { waitUntil: 'networkidle2', timeout: 60000 });
-        await page.waitForTimeout(3000);
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
         let isLoggedIn = await network.checkLogin(page);
         if (!isLoggedIn) {
           agentStatus.log(`⚠️ Não logado no ${network.name}. Aguarde login manual no navegador.`);
           agentStatus.setLoginStatus(network.name, false);
 
-          await page.waitForTimeout(120000);
+          await new Promise(resolve => setTimeout(resolve, 120000));
           isLoggedIn = await network.checkLogin(page);
           if (!isLoggedIn) {
             agentStatus.log(`❌ Login não realizado no ${network.name}`);
@@ -94,4 +94,4 @@ async function runAutomation(imagePath, videoPath, caption, agentStatus) {
   }
 }
 
-module.exports = { runAutomation };
+module.exports = { runAutomation, NETWORKS };

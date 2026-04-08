@@ -417,7 +417,14 @@ socket.on('task-update', (data) => {
 });
 
 socket.on('login-status', (data) => {
-  updateNetworkStatus(data.network, data.logged);
+  const networkKey = data.network.toLowerCase();
+  updateNetworkStatus(networkKey, data.logged);
+  const circle = document.querySelector(`[data-network="${networkKey}"] .status-dot`);
+  if (circle) {
+    circle.classList.remove('online', 'offline');
+    circle.classList.add(data.logged ? 'online' : 'offline');
+    circle.textContent = data.logged ? '🟢' : '🔴';
+  }
 });
 
 socket.on('ai-tool-status', (data) => {

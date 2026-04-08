@@ -1,163 +1,170 @@
-const axios = require('axios');
+const { createCanvas } = require('canvas');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 class AIManager {
   constructor(agentStatus) {
     this.agentStatus = agentStatus;
-    this.cache = {};
+    this.generatedDir = path.join(__dirname, 'generated');
+    if (!fs.existsSync(this.generatedDir)) {
+      fs.mkdirSync(this.generatedDir, { recursive: true });
+    }
   }
 
-  // Gerar imagens com múltiplas ferramentas
+  // Gerar imagens locais com Canvas (sem APIs caras)
   async generateImage(prompt) {
     this.agentStatus.setAIToolStatus('image-primary', 'loading');
     
     try {
-      // Tentar Hugging Face primeiro (gratuito)
-      const imageUrl = await this.generateWithHuggingFace(prompt);
-      this.agentStatus.setAIToolStatus('image-primary', 'success', 'Hugging Face');
-      this.agentStatus.log(`Imagem gerada com Hugging Face: ${prompt.substring(0, 50)}...`);
-      return imageUrl;
+      const imagePath = await this.generateLocalImage(prompt);
+      this.agentStatus.setAIToolStatus('image-primary', 'success', 'Canvas (Local)');
+      this.agentStatus.log(`Imagem gerada localmente: ${prompt.substring(0, 50)}...`);
+      return imagePath;
     } catch (error) {
-      this.agentStatus.log(`Erro ao gerar com Hugging Face: ${error.message}`);
-      
-      try {
-        // Fallback: Stability AI Free Tier
-        const imageUrl = await this.generateWithStabilityAI(prompt);
-        this.agentStatus.setAIToolStatus('image-primary', 'success', 'Stability AI');
-        this.agentStatus.log(`Imagem gerada com Stability AI`);
-        return imageUrl;
-      } catch (error2) {
-        this.agentStatus.log(`Erro ao gerar com Stability AI: ${error2.message}`);
-        
-        try {
-          // Fallback: OpenAI DALL-E (Free Trial)
-          const imageUrl = await this.generateWithOpenAI(prompt);
-          this.agentStatus.setAIToolStatus('image-primary', 'success', 'OpenAI');
-          this.agentStatus.log(`Imagem gerada com OpenAI`);
-          return imageUrl;
-        } catch (error3) {
-          this.agentStatus.log(`Erro ao gerar imagem: ${error3.message}`);
-          // Usar imagem padrão
-          return this.getDefaultImage();
-        }
-      }
+      this.agentStatus.log(`Erro ao gerar imagem: ${error.message}`);
+      return this.getDefaultImage();
     }
   }
 
-  async generateWithHuggingFace(prompt) {
-    const apiKey = process.env.HUGGINGFACE_API_KEY;
-    if (!apiKey) throw new Error('HuggingFace API key não configurada');
+  async generateLocalImage(prompt) {
+    try {
+      const canvas = createCanvas(1024, 1024);
+      const ctx = canvas.getContext('2d');
 
-    const response = await axios.post(
-      'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2',
-      { inputs: prompt },
-      { headers: { Authorization: `Bearer ${apiKey}` } }
-    );
+      // Paleta de cores variadas
+      const colors = [
+        { bg: ['#667eea', '#764ba2'], text: '#ffffff' },
+        { bg: ['#f093fb', '#f5576c'], text: '#ffffff' },
+        { bg: ['#4facfe', '#00f2fe'], text: '#ffffff' },
+        { bg: ['#43e97b', '#38f9d7'], text: '#000000' },
+        { bg: ['#fa709a', '#fee140'], text: '#000000' }
+      ];
 
-    if (response.data && response.data.length > 0) {
-      // Salvar imagem localmente
-      const imagePath = path.join(__dirname, 'generated', `${Date.now()}.png`);
-      if (!fs.existsSync(path.dirname(imagePath))) {
-        fs.mkdirSync(path.dirname(imagePath), { recursive: true });
+      const color = colors[Math.floor(Math.random() * colors.length)];
+
+      // Criar gradiente
+      const gradient = ctx.createLinearGradient(0, 0, 1024, 1024);
+      gradient.addColorStop(0, color.bg[0]);
+      gradient.addColorStop(1, color.bg[1]);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      // Adicionar efeitos decorativos
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      for (let i = 0; i < 5; i++) {
+        const x = Math.random() * 1024;
+        const y = Math.random() * 1024;
+        const r = Math.random() * 300 + 100;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
       }
-      fs.writeFileSync(imagePath, Buffer.from(response.data));
+
+      // Título
+      ctx.fillStyle = color.text;
+      ctx.font = 'bold 56px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 2;
+
+      // Truncar prompt se muito longo
+      const title = prompt.substring(0, 40);
+      ctx.fillText(title, 512, 400);
+
+      // Subtítulo
+      ctx.font = '32px Arial';
+      ctx.fillText('Gerado com IA Local', 512, 550);
+
+      // Timestamp
+      ctx.font = '20px Arial';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      const timestamp = new Date().toLocaleTimeString('pt-BR');
+      ctx.fillText(timestamp, 512, 900);
+
+      // Salvar imagem
+      const imagePath = path.join(this.generatedDir, `${Date.now()}.png`);
+      const buffer = canvas.toBuffer('image/png');
+      fs.writeFileSync(imagePath, buffer);
       return imagePath;
+    } catch (error) {
+      throw new Error(`Erro ao gerar imagem com canvas: ${error.message}`);
     }
-    throw new Error('Resposta inválida do HuggingFace');
-  }
-
-  async generateWithStabilityAI(prompt) {
-    const apiKey = process.env.STABILITY_API_KEY;
-    if (!apiKey) throw new Error('Stability AI API key não configurada');
-
-    const response = await axios.post(
-      'https://api.stability.ai/v1/generate',
-      { prompt, steps: 20 },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    if (response.data && response.data.artifacts) {
-      const imagePath = path.join(__dirname, 'generated', `${Date.now()}.png`);
-      if (!fs.existsSync(path.dirname(imagePath))) {
-        fs.mkdirSync(path.dirname(imagePath), { recursive: true });
-      }
-      fs.writeFileSync(imagePath, Buffer.from(response.data.artifacts[0].data, 'base64'));
-      return imagePath;
-    }
-    throw new Error('Resposta inválida do Stability AI');
-  }
-
-  async generateWithOpenAI(prompt) {
-    const OpenAI = require('openai');
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const response = await openai.images.generate({
-      model: 'dall-e-3',
-      prompt,
-      n: 1,
-      size: '1024x1024'
-    });
-
-    if (response.data[0].url) {
-      const imageUrl = response.data[0].url;
-      // Baixar e salvar localmente
-      const imageData = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-      const imagePath = path.join(__dirname, 'generated', `${Date.now()}.png`);
-      if (!fs.existsSync(path.dirname(imagePath))) {
-        fs.mkdirSync(path.dirname(imagePath), { recursive: true });
-      }
-      fs.writeFileSync(imagePath, imageData.data);
-      return imagePath;
-    }
-    throw new Error('Erro OpenAI: sem URL');
   }
 
   getDefaultImage() {
-    this.agentStatus.log('Usando imagem padrão');
-    return path.join(__dirname, 'assets', 'default-image.png');
+    this.agentStatus.log('Gerando imagem padrão');
+    try {
+      const canvas = createCanvas(1024, 1024);
+      const ctx = canvas.getContext('2d');
+
+      const gradient = ctx.createLinearGradient(0, 0, 1024, 1024);
+      gradient.addColorStop(0, '#667eea');
+      gradient.addColorStop(1, '#764ba2');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 56px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Agente de IA', 512, 450);
+      ctx.font = '32px Arial';
+      ctx.fillText('Redes Sociais', 512, 550);
+
+      const imagePath = path.join(this.generatedDir, 'default.png');
+      const buffer = canvas.toBuffer('image/png');
+      fs.writeFileSync(imagePath, buffer);
+      return imagePath;
+    } catch (error) {
+      this.agentStatus.log(`Erro ao gerar imagem padrão: ${error.message}`);
+      throw error;
+    }
   }
 
-  // Gerar vídeo
+  // Gerar vídeo com FFmpeg
   async generateVideo(imagePath, verse) {
     this.agentStatus.setAIToolStatus('video', 'loading');
-    
-    try {
-      // Usar ffmpeg para criar vídeo de imagem estática
-      const ffmpeg = require('ffmpeg-static');
-      const { spawn } = require('child_process');
-      const videoPath = path.join(__dirname, 'generated', `${Date.now()}.mp4`);
 
-      if (!fs.existsSync(path.dirname(videoPath))) {
-        fs.mkdirSync(path.dirname(videoPath), { recursive: true });
-      }
+    try {
+      const ffmpeg = require('ffmpeg-static');
+      const videoPath = path.join(this.generatedDir, `${Date.now()}.mp4`);
 
       return new Promise((resolve, reject) => {
         const ffmpegProcess = spawn(ffmpeg, [
           '-loop', '1',
           '-i', imagePath,
           '-c:v', 'libx264',
+          '-preset', 'fast',
           '-t', '15',
           '-pix_fmt', 'yuv420p',
+          '-vf', 'scale=1024:1024',
           videoPath
         ]);
 
-        ffmpegProcess.on('close', (code) => {
-          if (code === 0) {
-            this.agentStatus.setAIToolStatus('video', 'success', 'FFmpeg');
-            this.agentStatus.log(`Vídeo gerado: ${videoPath}`);
-            resolve(videoPath);
-          } else {
-            reject(new Error('Erro ao gerar vídeo'));
+        ffmpegProcess.stderr.on('data', (chunk) => {
+          const message = chunk.toString();
+          if (!message.includes('frame=') && !message.includes('Metadata')) {
+            this.agentStatus.log(`FFmpeg: ${message.trim().substring(0, 100)}`);
           }
         });
 
-        ffmpegProcess.on('error', reject);
+        ffmpegProcess.on('close', (code) => {
+          if (code === 0) {
+            this.agentStatus.setAIToolStatus('video', 'success', 'FFmpeg (Local)');
+            this.agentStatus.log(`Vídeo gerado: ${videoPath}`);
+            resolve(videoPath);
+          } else {
+            reject(new Error(`Erro ao gerar vídeo (código ${code})`));
+          }
+        });
+
+        ffmpegProcess.on('error', (error) => {
+          this.agentStatus.log(`Erro no ffmpeg: ${error.message}`);
+          reject(error);
+        });
       });
     } catch (error) {
       this.agentStatus.log(`Erro ao gerar vídeo: ${error.message}`);
@@ -165,63 +172,31 @@ class AIManager {
     }
   }
 
-  // Gerar texto (descrição) com múltiplas ferramentas
+  // Gerar texto (sem APIs caras)
   async generateText(verse) {
     this.agentStatus.setAIToolStatus('text', 'loading');
-    
+
     try {
-      // Tentar Ollama (local, sem limites)
-      const text = await this.generateWithOllama(verse);
-      this.agentStatus.setAIToolStatus('text', 'success', 'Ollama (Local)');
+      const text = await this.generateLocalText(verse);
+      this.agentStatus.setAIToolStatus('text', 'success', 'Local');
       return text;
     } catch (error) {
-      this.agentStatus.log(`Ollama não disponível, usando fallback`);
-      
-      try {
-        // Fallback: OpenAI
-        const text = await this.generateWithOpenAIText(verse);
-        this.agentStatus.setAIToolStatus('text', 'success', 'OpenAI');
-        return text;
-      } catch (error2) {
-        this.agentStatus.log(`Erro ao gerar texto: ${error2.message}`);
-        return verse; // Retornar apenas o versículo
-      }
+      this.agentStatus.log(`Erro ao gerar texto: ${error.message}`);
+      return verse;
     }
   }
 
-  async generateWithOllama(verse) {
-    try {
-      const response = await axios.post('http://localhost:11434/api/generate', {
-        model: 'llama2',
-        prompt: `Crie uma descrição poética e inspiradora para este versículo bíblico: "${verse}". Resposta em uma frase.`,
-        stream: false
-      });
+  async generateLocalText(verse) {
+    // Texto padrão inspirador em português
+    const templates = [
+      `"${verse}" - Uma mensagem poderosa para hoje.`,
+      `Compartilhando: ${verse}`,
+      `Inspiração: ${verse.substring(0, 50)}...`,
+      `Reflexão diária: ${verse}`,
+      `Mensagem: ${verse.substring(0, 60)}...`
+    ];
 
-      if (response.data && response.data.response) {
-        return response.data.response.trim();
-      }
-      throw new Error('Resposta inválida');
-    } catch (error) {
-      throw new Error(`Ollama não disponível: ${error.message}`);
-    }
-  }
-
-  async generateWithOpenAIText(verse) {
-    const OpenAI = require('openai');
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content: `Crie uma descrição poética e inspiradora para este versículo bíblico: "${verse}". Resposta em uma frase.`
-        }
-      ],
-      max_tokens: 100
-    });
-
-    return response.choices[0].message.content.trim();
+    return templates[Math.floor(Math.random() * templates.length)];
   }
 }
 

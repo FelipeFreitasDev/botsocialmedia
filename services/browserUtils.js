@@ -81,7 +81,7 @@ async function waitForNavigationOrTimeout(page, options = {}) {
   const timeout = options.timeout || 30000;
   return Promise.race([
     page.waitForNavigation({ waitUntil: options.waitUntil || 'networkidle2', timeout }).catch(() => null),
-    page.waitForTimeout(timeout)
+    new Promise(resolve => setTimeout(resolve, timeout))
   ]);
 }
 
@@ -93,14 +93,15 @@ async function clickButtonByText(page, labels, timeout = 20000) {
 
   const xpath = `//button[${conditions}] | //a[${conditions}] | //div[${conditions}]`;
   await page.waitForXPath(xpath, { timeout });
-  const elements = await page.$x(xpath);
-  if (!elements || elements.length === 0) {
-    throw new Error(`Botão com texto ${texts.join(', ')} não encontrado`);
-  }
-
-  await elements[0].focus();
-  await elements[0].click();
-  return elements[0];
+  await page.evaluate((xpath) => {
+    const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+    if (result.singleNodeValue) {
+      result.singleNodeValue.focus();
+      result.singleNodeValue.click();
+    }
+  }, xpath);
+  // Since we can't return the element, return null or something
+  return null;
 }
 
 async function uploadFileInput(page, selector, filePath) {
@@ -112,6 +113,17 @@ async function uploadFileInput(page, selector, filePath) {
   await input.uploadFile(filePath);
 }
 
+async function getElementsByXPath(page, xpath) {
+  return await page.evaluate((xpath) => {
+    const result = [];
+    const xpathResult = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    for (let i = 0; i < xpathResult.snapshotLength; i++) {
+      result.push(xpathResult.snapshotItem(i));
+    }
+    return result;
+  }, xpath);
+}
+
 module.exports = {
   launchBrowser,
   saveCookies,
@@ -119,5 +131,6 @@ module.exports = {
   clearCookies,
   waitForNavigationOrTimeout,
   clickButtonByText,
-  uploadFileInput
+  uploadFileInput,
+  getElementsByXPath
 };

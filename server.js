@@ -8,7 +8,8 @@ const cron = require('node-cron');
 const AgentStatus = require('./agentStatus');
 const AIManager = require('./aiManager');
 const ConfigManager = require('./configManager');
-const { runAutomation } = require('./socialMedia');
+const { runAutomation, NETWORKS } = require('./socialMedia');
+const { launchBrowser, saveCookies, loadCookies, clearCookies } = require('./services/browserUtils');
 
 const app = express();
 const server = http.createServer(app);
@@ -68,15 +69,63 @@ io.on('connection', (socket) => {
     agentStatus.log('Agente retomado pelo usuário');
   });
 
-  socket.on('connect-network', (data) => {
-    const network = data.network;
-    agentStatus.log(`Iniciando processo de conexão para ${network}`);
-    socket.emit('connect-status', { status: `Abrindo navegador para ${network}...` });
-    
-    // Aqui você pode iniciar a conexão manual de login via Puppeteer
-    setTimeout(() => {
-      socket.emit('connect-status', { status: `Aguardando login no ${network}...` });
-    }, 2000);
+  socket.on('connect-network', async (data) => {
+    const networkKey = data.network;
+    const network = NETWORKS.find(item => item.sessionId === networkKey);
+
+    if (!network) {
+      socket.emit('connect-status', { status: `Rede ${networkKey} não encontrada` });
+      return;
+    }
+
+    agentStatus.log(`Iniciando processo de conexão para ${network.name}`);
+    socket.emit('connect-status', { status: `Abrindo navegador para ${network.name}...` });
+
+    let browser;
+
+    try {
+      browser = await launchBrowser();
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1280, height: 900 });
+      await loadCookies(page, network.sessionId);
+
+      await page.goto(network.url, { waitUntil: 'networkidle2', timeout: 60000 });
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      let isLoggedIn = await network.checkLogin(page);
+      if (!isLoggedIn) {
+        socket.emit('connect-status', { status: `Aguardando login manual no ${network.name}...` });
+
+        const startTime = Date.now();
+        const maxWait = 180000;
+
+        while (Date.now() - startTime < maxWait && !isLoggedIn) {
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          isLoggedIn = await network.checkLogin(page);
+        }
+      }
+
+      if (!isLoggedIn) {
+        socket.emit('connect-status', { status: `Não foi possível conectar no ${network.name}. Tente novamente.` });
+        agentStatus.log(`❌ Login não realizado no ${network.name}`);
+        agentStatus.setLoginStatus(network.name, false);
+        return;
+      }
+
+      agentStatus.log(`✅ Logado no ${network.name}`);
+      agentStatus.setLoginStatus(network.name, true);
+      socket.emit('connect-status', { status: `Conectado no ${network.name}! Salvando sessão...` });
+      await saveCookies(page, network.sessionId);
+      agentStatus.log(`💾 Cookies salvos para ${network.name}`);
+      socket.emit('connect-status', { status: `Sessão salva para ${network.name}. Pronto para postar.` });
+    } catch (error) {
+      agentStatus.log(`Erro ao conectar ${network.name}: ${error.message}`);
+      socket.emit('connect-status', { status: `Erro ao conectar no ${network.name}: ${error.message}` });
+    } finally {
+      if (browser) {
+        await browser.close();
+      }
+    }
   });
 
   socket.on('generate-preview', async (payload) => {
