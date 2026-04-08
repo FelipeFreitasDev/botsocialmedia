@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agente de IA - Redes Sociais</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🤖 Agente de IA para Redes Sociais</h1>
+      <div class="header-info">
+        <span id="status-indicator" class="status-offline">● Offline</span>
+        <span id="time"></span>        <button id="btn-settings-header" class="btn-icon" title="Configurações">⚙️</button>      </div>
+    </header>
+
+    <main>
+      <div class="grid">
+        <!-- Painel de Status -->
+        <section class="panel status-panel">
+          <h2>Estado do Agente</h2>
+          <div class="status-item">
+            <label>Status:</label>
+            <span id="agent-status">Inicializando...</span>
+          </div>
+          <div class="status-item">
+            <label>Tarefa Atual:</label>
+            <span id="current-task">Nenhuma</span>
+          </div>
+          <div class="status-item">
+            <label>Progresso:</label>
+            <div class="progress-bar">
+              <div id="progress-fill" class="progress-fill"></div>
+            </div>
+            <span id="progress-text">0%</span>
+          </div>
+        </section>
+
+        <!-- Painel de Login -->
+        <section class="panel login-panel">
+          <h2>Redes Sociais Conectadas</h2>
+          <div class="network-list">
+            <div class="network-item clickable" data-network="facebook">
+              <span class="network-icon">f</span>
+              <span class="network-name">Facebook</span>
+              <span id="facebook-status" class="status-dot offline">●</span>
+            </div>
+            <div class="network-item clickable" data-network="instagram">
+              <span class="network-icon">📷</span>
+              <span class="network-name">Instagram</span>
+              <span id="instagram-status" class="status-dot offline">●</span>
+            </div>
+            <div class="network-item clickable" data-network="pinterest">
+              <span class="network-icon">📌</span>
+              <span class="network-name">Pinterest</span>
+              <span id="pinterest-status" class="status-dot offline">●</span>
+            </div>
+            <div class="network-item clickable" data-network="tiktok">
+              <span class="network-icon">🎵</span>
+              <span class="network-name">TikTok</span>
+              <span id="tiktok-status" class="status-dot offline">●</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Painel de Ferramentas de IA -->
+        <section class="panel ai-panel">
+          <h2>Ferramentas de IA em Uso</h2>
+          <div class="ai-tools">
+            <div class="ai-tool">
+              <span class="tool-name">Imagem Primária:</span>
+              <span id="tool-image-primary" class="tool-status">Carregando...</span>
+            </div>
+            <div class="ai-tool">
+              <span class="tool-name">Imagem Fallback:</span>
+              <span id="tool-image-fallback" class="tool-status">Pronto</span>
+            </div>
+            <div class="ai-tool">
+              <span class="tool-name">Vídeo:</span>
+              <span id="tool-video" class="tool-status">Pronto</span>
+            </div>
+            <div class="ai-tool">
+              <span class="tool-name">Texto:</span>
+              <span id="tool-text" class="tool-status">Pronto</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Painel de Atividade -->
+        <section class="panel activity-panel">
+          <h2>Log de Atividades</h2>
+          <div id="activity-log" class="activity-log">
+            <div class="log-entry">
+              <span class="log-time">[00:00:00]</span>
+              <span class="log-message">Sistema iniciado...</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Painel de Agendamento -->
+        <section class="panel schedule-panel">
+          <h2>Próximas Postagens</h2>
+          <div id="next-posts" class="next-posts">
+            <div class="post-item">
+              <span class="post-time">3:00 AM</span>
+              <span class="post-status">Agendado</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Painel de Controle -->
+        <section class="panel control-panel">
+          <h2>Controles</h2>
+          <button id="btn-test-post" class="btn btn-primary">Testar Postagem</button>
+          <button id="btn-pause" class="btn btn-warning">Pausar Agente</button>
+          <button id="btn-resume" class="btn btn-success">Retomar</button>
+          <button id="btn-settings" class="btn btn-secondary">Configurações</button>
+        </section>
+
+        <!-- Painel de Comando Direto -->
+        <section class="panel command-panel">
+          <h2>Comando Direto</h2>
+          <div class="command-row">
+            <label for="command-image-prompt">Descrição da imagem</label>
+            <textarea id="command-image-prompt" rows="3" placeholder="Descreva o que deve aparecer na imagem"></textarea>
+          </div>
+          <div class="command-row">
+            <label for="command-video-prompt">Descrição do vídeo</label>
+            <textarea id="command-video-prompt" rows="3" placeholder="Descreva o estilo do vídeo"></textarea>
+          </div>
+          <div class="command-row">
+            <label for="command-caption">Legenda / descrição</label>
+            <textarea id="command-caption" rows="2" placeholder="Texto que será usado na postagem"></textarea>
+          </div>
+          <div class="command-buttons">
+            <button id="btn-generate-preview" class="btn btn-primary">Gerar Prévia</button>
+            <button id="btn-post-now" class="btn btn-success">Postar Agora</button>
+          </div>
+          <div id="preview-summary" class="preview-summary hidden">
+            <div class="preview-summary-text">
+              <strong>Prompt:</strong> <span id="preview-prompt"></span>
+            </div>
+            <div class="preview-summary-text">
+              <strong>Legenda:</strong> <span id="preview-caption"></span>
+            </div>
+            <div class="preview-card">
+              <img id="preview-image" src="" alt="Prévia da imagem" />
+              <video id="preview-video" controls src=""></video>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer>
+      <p>Agente de IA v1.0 | Desenvolvido para automação de redes sociais</p>
+    </footer>
+  </div>
+
+  <!-- MODAIS E JANELAS -->
+  
+  <!-- Modal de Configurações -->
+  <div id="modal-settings" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>⚙️ Configurações</h2>
+        <button class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-group">
+          <label>Frequência de Postagens</label>
+          <select id="setting-frequency">
+            <option value="3h">A cada 3 horas</option>
+            <option value="6h">A cada 6 horas</option>
+            <option value="daily">Uma vez por dia</option>
+            <option value="custom">Customizado</option>
+          </select>
+        </div>
+
+        <div class="settings-group">
+          <label>Qualidade das Imagens</label>
+          <select id="setting-image-quality">
+            <option value="fast">Rápido (menor tamanho)</option>
+            <option value="medium">Médio (recomendado)</option>
+            <option value="high">Alta Qualidade</option>
+          </select>
+        </div>
+
+        <div class="settings-group">
+          <label>Duração dos Vídeos (segundos)</label>
+          <input type="number" id="setting-video-duration" min="5" max="30" value="15">
+        </div>
+
+        <div class="settings-group">
+          <label>
+            <input type="checkbox" id="setting-auto-edit" checked>
+            Edição automática de imagens
+          </label>
+        </div>
+
+        <div class="settings-group">
+          <label>
+            <input type="checkbox" id="setting-notifications" checked>
+            Notificações no dashboard
+          </label>
+        </div>
+
+        <div class="settings-group">
+          <label>API Primária de Imagens</label>
+          <select id="setting-primary-api">
+            <option value="huggingface">Hugging Face</option>
+            <option value="stability">Stability AI</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-settings-save" class="btn btn-primary">Salvar</button>
+        <button class="btn btn-secondary btn-close">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Conexão em Rede Social -->
+  <div id="modal-connect" class="modal">
+    <div class="modal-content" style="width: 90%; max-width: 500px;">
+      <div class="modal-header">
+        <h2 id="modal-connect-title">Conectar no Facebook</h2>
+        <button class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="connect-info" id="connect-info"></div>
+        <div class="connect-steps">
+          <ol>
+            <li>Clique no botão abaixo</li>
+            <li>Faça login no navegador que abrir</li>
+            <li>Permita o acesso quando solicitado</li>
+            <li>Feche o navegador quando terminar</li>
+            <li>Os cookies serão salvos automaticamente</li>
+          </ol>
+        </div>
+        <div class="connection-status">
+          <p id="connection-status-text">Status: Aguardando ação...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-connect-now" class="btn btn-primary">Conectar Agora</button>
+        <button class="btn btn-secondary btn-close">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Janela de Visualização Prévia -->
+  <div id="window-preview" class="floating-window" style="display: none;">
+    <div class="window-header">
+      <span>🖼️ Galeria de Conteúdo</span>
+      <button id="btn-close-preview" class="btn-close">&times;</button>
+    </div>
+    <div class="window-content">
+      <div class="preview-tabs">
+        <button class="preview-tab active" data-tab="images">Imagens</button>
+        <button class="preview-tab" data-tab="videos">Vídeos</button>
+        <button class="preview-tab" data-tab="editor">Editor</button>
+      </div>
+
+      <!-- Tab Imagens -->
+      <div class="preview-tab-content active" id="tab-images">
+        <div class="gallery-grid" id="gallery-images">
+          <div class="gallery-placeholder">
+            Nenhuma imagem gerada ainda
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Vídeos -->
+      <div class="preview-tab-content" id="tab-videos">
+        <div class="gallery-grid" id="gallery-videos">
+          <div class="gallery-placeholder">
+            Nenhum vídeo gerado ainda
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Editor -->
+      <div class="preview-tab-content" id="tab-editor">
+        <div class="editor-panel">
+          <div class="editor-canvas">
+            <canvas id="image-editor-canvas" width="400" height="400"></canvas>
+          </div>
+          <div class="editor-controls">
+            <label>Contraste: <input type="range" id="editor-contrast" min="-100" max="100" value="0"></label>
+            <label>Brilho: <input type="range" id="editor-brightness" min="-100" max="100" value="0"></label>
+            <label>Saturação: <input type="range" id="editor-saturation" min="-100" max="100" value="0"></label>
+            <label>Rotação: <input type="range" id="editor-rotation" min="0" max="360" value="0">°</label>
+            <div class="editor-buttons">
+              <button id="btn-editor-apply" class="btn btn-primary">Aplicar Edições</button>
+              <button id="btn-editor-reset" class="btn btn-secondary">Resetar</button>
+              <button id="btn-editor-download" class="btn btn-success">Baixar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Janela de Terminal/Console -->
+  <div id="window-terminal" class="floating-window" style="display: none;">
+    <div class="window-header">
+      <span>💻 Console de Comandos</span>
+      <button id="btn-close-terminal" class="btn-close">&times;</button>
+    </div>
+    <div class="window-content">
+      <div class="terminal-output" id="terminal-output">
+        <div class="terminal-line">Sistema pronto para comandos...</div>
+      </div>
+      <div class="terminal-input-area">
+        <input 
+          type="text" 
+          id="terminal-input" 
+          class="terminal-input" 
+          placeholder="Digite um comando... (help para ver opções)"
+          autocomplete="off"
+        >
+      </div>
+    </div>
+  </div>
+
+  <!-- Botões Flutuantes -->
+  <div class="floating-buttons">
+    <button id="btn-toggle-preview" class="floating-btn" title="Galeria (P)">🖼️</button>
+    <button id="btn-toggle-terminal" class="floating-btn" title="Terminal (T)">💻</button>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

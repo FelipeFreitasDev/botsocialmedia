@@ -1,0 +1,34 @@
+# Configurações
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/*
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Cache/Sessão
+cookies.json
+.cache
+
+# Dependências
+node_modules/
+package-lock.json
+
+# Arquivos Gerados
+generated/*
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporários
+temp/
+tmp/
+*.tmp

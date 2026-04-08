@@ -1,0 +1,14 @@
+{
+  "frequency": "3h",
+  "imageQuality": "fast",
+  "videoDuration": "15",
+  "autoEdit": true,
+  "notifications": true,
+  "primaryApi": "huggingface",
+  "networks": {
+    "facebook": false,
+    "instagram": false,
+    "pinterest": false,
+    "tiktok": false
+  }
+}
