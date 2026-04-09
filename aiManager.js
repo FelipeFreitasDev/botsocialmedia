@@ -17,12 +17,26 @@ class AIManager {
   async generateImage(prompt) {
     this.agentStatus.setAIToolStatus('image-primary', 'loading');
 
+    // Gerar o texto inteligente PRIMEIRO
+    let intelligentText = '';
+    try {
+      intelligentText = await this.generateLocalText(prompt);
+      this.agentStatus.log(`📝 Texto gerado: "${intelligentText.substring(0, 40)}..."`);
+    } catch (error) {
+      intelligentText = prompt.substring(0, 50);
+      this.agentStatus.log(`⚠️ Erro ao gerar texto inteligente: ${error.message}`);
+    }
+
     // Tentar IA generativa primeiro (Pollinations.ai - 100% gratuita, sem limite)
     try {
       const imagePath = await this.generateAIImage(prompt);
+      this.agentStatus.log(`✨ Imagem gerada com IA`);
+      
+      // Adicionar texto sobre a imagem
+      const imageWithText = await this.addTextToImage(imagePath, intelligentText);
       this.agentStatus.setAIToolStatus('image-primary', 'success', 'AI Generated (Free)');
-      this.agentStatus.log(`Imagem gerada com IA`);
-      return imagePath;
+      
+      return imageWithText;
     } catch (error) {
       this.agentStatus.log(`Falha na geração com IA: ${error.message}. Tentando banco de imagens...`);
     }
@@ -30,9 +44,13 @@ class AIManager {
     // Fallback: tentar banco de imagens gratuitas
     try {
       const imagePath = await this.fetchFreeImage(prompt);
+      this.agentStatus.log(`Imagem obtida de banco gratuito`);
+      
+      // Adicionar texto sobre a imagem
+      const imageWithText = await this.addTextToImage(imagePath, intelligentText);
       this.agentStatus.setAIToolStatus('image-primary', 'success', 'Stock Image (Free)');
-      this.agentStatus.log(`Imagem obtida de fonte gratuita`);
-      return imagePath;
+      
+      return imageWithText;
     } catch (error) {
       this.agentStatus.log(`Falha ao obter imagem de banco: ${error.message}. Usando geração local.`);
     }
@@ -84,6 +102,66 @@ class AIManager {
       return imagePath;
     } catch (error) {
       throw new Error(`Erro ao gerar imagem com IA: ${error.message}`);
+    }
+  }
+
+  // Adicionar texto sobre uma imagem existente
+  async addTextToImage(imagePath, text) {
+    try {
+      const image = await loadImage(imagePath);
+      const canvas = createCanvas(image.width, image.height);
+      const ctx = canvas.getContext('2d');
+
+      // Desenhar a imagem como fundo
+      ctx.drawImage(image, 0, 0);
+
+      // Adicionar overlay semi-transparente para melhor legibilidade do texto
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(0, canvas.height * 0.6, canvas.width, canvas.height * 0.4);
+
+      // Adicionar texto branco
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 48px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 3;
+
+      // Quebrar texto em linhas se necessário
+      const maxChars = 30;
+      const lines = [];
+      const words = text.split(' ');
+      let currentLine = '';
+
+      for (const word of words) {
+        if ((currentLine + word).length > maxChars) {
+          if (currentLine) lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine += (currentLine ? ' ' : '') + word;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+
+      // Desenhar linhas de texto
+      const lineHeight = 60;
+      const startY = canvas.height - (lines.length * lineHeight) / 2 - 40;
+
+      lines.forEach((line, index) => {
+        ctx.fillText(line, canvas.width / 2, startY + index * lineHeight);
+      });
+
+      // Salvar imagem com texto
+      const textImagePath = imagePath.replace(/\.[^/.]+$/, '-com-texto.png');
+      const buffer = canvas.toBuffer('image/png');
+      fs.writeFileSync(textImagePath, buffer);
+
+      this.agentStatus.log(`✅ Texto adicionado à imagem: "${text.substring(0, 40)}..."`);
+      return textImagePath;
+    } catch (error) {
+      this.agentStatus.log(`⚠️ Erro ao adicionar texto: ${error.message}. Usando imagem original.`);
+      return imagePath; // Retornar original se falhar
     }
   }
 
