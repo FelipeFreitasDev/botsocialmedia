@@ -13,19 +13,31 @@ class AIManager {
     }
   }
 
-  // Gerar imagens, preferindo fontes gratuitas externas antes do fallback local
+  // Gerar imagens com IA (Pollinations.ai) como primeira opção
   async generateImage(prompt) {
     this.agentStatus.setAIToolStatus('image-primary', 'loading');
 
+    // Tentar IA generativa primeiro (Pollinations.ai - 100% gratuita, sem limite)
+    try {
+      const imagePath = await this.generateAIImage(prompt);
+      this.agentStatus.setAIToolStatus('image-primary', 'success', 'AI Generated (Free)');
+      this.agentStatus.log(`Imagem gerada com IA`);
+      return imagePath;
+    } catch (error) {
+      this.agentStatus.log(`Falha na geração com IA: ${error.message}. Tentando banco de imagens...`);
+    }
+
+    // Fallback: tentar banco de imagens gratuitas
     try {
       const imagePath = await this.fetchFreeImage(prompt);
       this.agentStatus.setAIToolStatus('image-primary', 'success', 'Stock Image (Free)');
       this.agentStatus.log(`Imagem obtida de fonte gratuita`);
       return imagePath;
     } catch (error) {
-      this.agentStatus.log(`Falha ao obter imagem: ${error.message}. Usando geração local.`);
+      this.agentStatus.log(`Falha ao obter imagem de banco: ${error.message}. Usando geração local.`);
     }
 
+    // Último recurso: gerar localmente com Canvas
     try {
       const imagePath = await this.generateLocalImage(prompt);
       this.agentStatus.setAIToolStatus('image-primary', 'success', 'Generated (Local)');
@@ -34,6 +46,44 @@ class AIManager {
     } catch (error) {
       this.agentStatus.log(`Erro ao gerar imagem local: ${error.message}`);
       return this.getDefaultImage();
+    }
+  }
+
+  // Gerar imagem com Pollinations.ai (API 100% gratuita, sem chave/token)
+  async generateAIImage(prompt) {
+    try {
+      this.agentStatus.log(`Gerando imagem com IA sobre: "${prompt.substring(0, 50)}..."`);
+      
+      // URL com encoding correto para Pollinations.ai
+      const cleanPrompt = prompt.replace(/[^\w\s\-]/g, '').trim();
+      const apiUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}`;
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'image/*'
+        },
+        timeout: 60000
+      });
+
+      if (!response.ok) {
+        throw new Error(`IA respondeu com status ${response.status}`);
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      
+      // Validar se é uma imagem válida
+      if (buffer.length < 5000) {
+        throw new Error('Imagem gerada muito pequena ou inválida');
+      }
+
+      const imagePath = path.join(this.generatedDir, `ai-${Date.now()}.png`);
+      fs.writeFileSync(imagePath, buffer);
+      this.agentStatus.log(`✨ Imagem gerada com sucesso pela IA`);
+      
+      return imagePath;
+    } catch (error) {
+      throw new Error(`Erro ao gerar imagem com IA: ${error.message}`);
     }
   }
 

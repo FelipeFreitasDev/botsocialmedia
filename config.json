@@ -1,6 +1,6 @@
 {
-  "frequency": "3h",
-  "imageQuality": "fast",
+  "frequency": "custom",
+  "imageQuality": "high",
   "videoDuration": "15",
   "autoEdit": true,
   "notifications": true,

@@ -143,6 +143,7 @@ class ModalManager {
       videoDuration: document.getElementById('setting-video-duration').value,
       autoEdit: document.getElementById('setting-auto-edit').checked,
       notifications: document.getElementById('setting-notifications').checked,
+      imageSource: document.getElementById('setting-image-source').value,
       primaryApi: document.getElementById('setting-primary-api').value
     };
 
@@ -599,4 +600,15 @@ document.addEventListener('keydown', (e) => {
 
 socket.on('connect', () => {
   socket.emit('request-status');
+  socket.emit('request-settings');
+});
+
+socket.on('settings-data', (settings) => {
+  document.getElementById('setting-frequency').value = settings.frequency || '3h';
+  document.getElementById('setting-image-quality').value = settings.imageQuality || 'medium';
+  document.getElementById('setting-video-duration').value = settings.videoDuration || 15;
+  document.getElementById('setting-auto-edit').checked = settings.autoEdit !== false;
+  document.getElementById('setting-notifications').checked = settings.notifications !== false;
+  document.getElementById('setting-image-source').value = settings.imageSource || 'both';
+  document.getElementById('setting-primary-api').value = settings.primaryApi || 'huggingface';
 });
