@@ -775,16 +775,64 @@ class AIManager {
       return wellnessPhrases[Math.floor(Math.random() * wellnessPhrases.length)];
     }
 
-    // Para outros tipos, usar templates genéricos
-    const templates = [
-      `"${verse}" - Uma mensagem poderosa para hoje.`,
-      `Compartilhando: ${verse}`,
-      `Inspiração: ${verse.substring(0, 50)}...`,
-      `Reflexão diária: ${verse}`,
-      `Mensagem: ${verse.substring(0, 60)}...`
+    // Categorias adicionais
+    if (lowerVerse.includes('direito') || lowerVerse.includes('lei') || lowerVerse.includes('justiça') || lowerVerse.includes('legal')) {
+      const justicePhrases = [
+        "A justiça é o alicerce de uma sociedade equilibrada. ⚖️",
+        "A verdade e a integridade guiam o caminho da lei. 📜",
+        "O direito de cada um começa onde termina o direito do outro. 🤝",
+        "Uma lei justa protege todos sem distinção. 👨‍⚖️",
+        "A equidade legal é fundamental para a harmonia social. 💪",
+        "O respeito aos direitos é base de toda civilização. 🏛️",
+        "Justiça sem compaixão é crueldade; compaixão sem justiça é fraqueza. ⚔️",
+        "As leis existem para proteger, não para oprimir. 🛡️"
+      ];
+      return justicePhrases[Math.floor(Math.random() * justicePhrases.length)];
+    }
+
+    if (lowerVerse.includes('sucesso') || lowerVerse.includes('prospero') || lowerVerse.includes('riqueza') || lowerVerse.includes('abund')) {
+      const abundancePhrases = [
+        "O sucesso é resultado da dedicação e perseverança. 💰",
+        "A prosperidade chega para quem trabalha com propósito. 📈",
+        "Abundância é um estado mental que atrai oportunidades. 🌟",
+        "Cada ação pequena leva a grandes realizações. 🎯",
+        "O sucesso não é destino, é uma jornada contínua. 🚀",
+        "Riqueza verdadeira vem do conhecimento e do caráter. 📚",
+        "Abundância de oportunidades espera por quem está pronto. 🌈",
+        "O caminho para o sucesso começa com a decisão. 💎"
+      ];
+      return abundancePhrases[Math.floor(Math.random() * abundancePhrases.length)];
+    }
+
+    if (lowerVerse.includes('saúde') || lowerVerse.includes('vida') || lowerVerse.includes('corpo') || lowerVerse.includes('mente')) {
+      const healthPhrases = [
+        "Uma mente saudável reflete um corpo saudável. 🧠💪",
+        "A saúde é a riqueza verdadeira da vida. 💚",
+        "Cuide de si mesmo como se fosse seu maior tesouro. 🌿",
+        "Cada dia vivido com saúde é uma bênção. ☀️",
+        "O bem viver começa com escolhas conscientes. 🥗",
+        "Vida plena é aquela vivida com equilíbrio e harmonia. 🕉️",
+        "Sua saúde é seu investimento mais valioso. 👑",
+        "Viver é cuidar, aprender e crescer a cada momento. 🌱"
+      ];
+      return healthPhrases[Math.floor(Math.random() * healthPhrases.length)];
+    }
+
+    // Para outros tipos, usar frases inspiradoras genéricas (não depender do prompt)
+    const generalPhrases = [
+      "Cada dia traz novas oportunidades e possibilidades. 🌅",
+      "Acredite em você e em seus sonhos. ✨",
+      "A vida é uma jornada, aproveite cada momento. 🌊",
+      "Sua história ainda está sendo escrita. 📖",
+      "O presente é o momento perfeito para recomeçar. 🔄",
+      "Você é mais forte do que imagina. 💪",
+      "Pequenos passos levam a grandes conquistas. 👣",
+      "O melhor está por vir para quem persevera. 🌟",
+      "Transforme desafios em oportunidades de crescimento. 🦋",
+      "Viva com intenção, amor e gratidão. 💖"
     ];
 
-    return templates[Math.floor(Math.random() * templates.length)];
+    return generalPhrases[Math.floor(Math.random() * generalPhrases.length)];
   }
 }
 
