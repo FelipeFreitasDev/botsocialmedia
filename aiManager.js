@@ -27,6 +27,50 @@ class AIManager {
     }
   }
 
+  async generateLocalImage(prompt) {
+    try {
+      const canvas = createCanvas(1080, 1920); // Formato vertical para redes sociais
+      const ctx = canvas.getContext('2d');
+
+      const lowerPrompt = prompt.toLowerCase();
+
+      // Selecionar template baseado no prompt
+      let template;
+      if (lowerPrompt.includes('amor') || lowerPrompt.includes('romântico') || lowerPrompt.includes('frase de amor')) {
+        template = await this.createLoveTemplate(ctx, canvas);
+      } else if (lowerPrompt.includes('motivação') || lowerPrompt.includes('inspiração') || lowerPrompt.includes('força')) {
+        template = await this.createMotivationTemplate(ctx, canvas);
+      } else if (lowerPrompt.includes('gratidão') || lowerPrompt.includes('obrigado')) {
+        template = await this.createGratitudeTemplate(ctx, canvas);
+      } else if (lowerPrompt.includes('bem estar') || lowerPrompt.includes('bem-estar') || lowerPrompt.includes('saúde') || lowerPrompt.includes('relaxamento') || lowerPrompt.includes('paz')) {
+        template = await this.createWellnessTemplate(ctx, canvas);
+      } else {
+        template = await this.createDefaultTemplate(ctx, canvas);
+      }
+
+      // Aplicar template
+      await template.draw();
+
+      // Adicionar texto principal
+      this.addMainText(ctx, template.text, canvas);
+
+      // Adicionar elementos decorativos
+      this.addDecorativeElements(ctx, canvas, template.theme);
+
+      // Adicionar timestamp sutil
+      this.addTimestamp(ctx, canvas);
+
+      // Salvar imagem
+      const imagePath = path.join(this.generatedDir, `${Date.now()}.png`);
+      const buffer = canvas.toBuffer('image/png');
+      fs.writeFileSync(imagePath, buffer);
+
+      return imagePath;
+    } catch (error) {
+      throw new Error(`Erro ao gerar imagem avançada: ${error.message}`);
+    }
+  }
+
   async createLoveTemplate(ctx, canvas) {
     return {
       theme: { colors: ['#ff6b9d', '#c44569', '#ff9999'], emoji: '💕', accent: '#ff1493' },
@@ -144,6 +188,57 @@ class AIManager {
           const x = Math.random() * width;
           const y = Math.random() * height;
           this.drawFlower(ctx, x, y, 15);
+        }
+      }
+    };
+  }
+
+  async createWellnessTemplate(ctx, canvas) {
+    return {
+      theme: { colors: ['#a8e6cf', '#dcedc8', '#ffd3a5'], emoji: '🧘', accent: '#52c234' },
+      text: '🧘 Bem-Estar 🧘',
+      draw: async () => {
+        const { width, height } = canvas;
+
+        // Gradiente calmo e natural
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#a8e6cf');
+        gradient.addColorStop(0.5, '#dcedc8');
+        gradient.addColorStop(1, '#ffd3a5');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // Padrão de ondas suaves (como água calma)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 3;
+        for (let y = 0; y < height; y += 80) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          for (let x = 0; x < width; x += 30) {
+            ctx.lineTo(x, y + Math.sin(x * 0.008) * 20);
+          }
+          ctx.stroke();
+        }
+
+        // Adicionar elementos de natureza (folhas, flores)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        for (let i = 0; i < 12; i++) {
+          const x = Math.random() * width;
+          const y = Math.random() * height;
+          if (i % 3 === 0) {
+            this.drawLeaf(ctx, x, y, 20);
+          } else {
+            this.drawFlower(ctx, x, y, 12);
+          }
+        }
+
+        // Círculos concêntricos para meditação
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 2;
+        for (let i = 1; i <= 5; i++) {
+          ctx.beginPath();
+          ctx.arc(width / 2, height / 2, 50 + i * 30, 0, Math.PI * 2);
+          ctx.stroke();
         }
       }
     };
@@ -335,6 +430,8 @@ class AIManager {
         this.drawStar(ctx, x, y, size);
       } else if (theme.emoji === '🙏') {
         this.drawFlower(ctx, x, y, size);
+      } else if (theme.emoji === '🧘') {
+        this.drawLeaf(ctx, x, y, size);
       } else {
         // Círculos para tema padrão
         ctx.beginPath();
@@ -385,31 +482,114 @@ class AIManager {
     ctx.restore();
   }
 
-  drawFlower(ctx, x, y, size) {
+  drawLeaf(ctx, x, y, size) {
     ctx.save();
     ctx.translate(x, y);
+    ctx.scale(size / 50, size / 50);
 
-    // Centro da flor
+    ctx.fillStyle = ctx.fillStyle; // Usar a cor atual
     ctx.beginPath();
-    ctx.arc(0, 0, size * 0.3, 0, Math.PI * 2);
+    ctx.moveTo(0, -25);
+    ctx.bezierCurveTo(-15, -25, -25, -10, -25, 0);
+    ctx.bezierCurveTo(-25, 10, -15, 25, 0, 25);
+    ctx.bezierCurveTo(15, 25, 25, 10, 25, 0);
+    ctx.bezierCurveTo(25, -10, 15, -25, 0, -25);
+    ctx.closePath();
     ctx.fill();
 
-    // Pétalas
-    for (let i = 0; i < 6; i++) {
-      ctx.beginPath();
-      ctx.ellipse(
-        Math.cos(i * Math.PI / 3) * size * 0.6,
-        Math.sin(i * Math.PI / 3) * size * 0.6,
-        size * 0.4,
-        size * 0.2,
-        i * Math.PI / 3,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
-    }
+    // Veia central
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, -25);
+    ctx.lineTo(0, 25);
+    ctx.stroke();
 
     ctx.restore();
+  }
+
+  async generateLocalText(verse) {
+    const lowerVerse = verse.toLowerCase();
+
+    // Detectar tipo de conteúdo baseado no prompt
+    if (lowerVerse.includes('amor') || lowerVerse.includes('romântico') || lowerVerse.includes('frase de amor')) {
+      // Frases de amor originais
+      const lovePhrases = [
+        "O amor é a força que move o mundo e aquece o coração. 💕",
+        "Cada dia ao seu lado é uma nova página de felicidade. ❤️",
+        "O verdadeiro amor não conhece barreiras, apenas conexões profundas. 💑",
+        "Você é a razão do meu sorriso todos os dias. 😊❤️",
+        "O amor verdadeiro é aquele que cresce com o tempo. 🌹",
+        "Em seus braços encontro a paz que sempre busquei. 🕊️",
+        "O amor é a linguagem universal do coração. 💖",
+        "Juntos construímos memórias que durarão para sempre. 📸❤️",
+        "Seu amor ilumina os meus dias mais escuros. ✨",
+        "O amor não se mede em palavras, mas em sentimentos. 💕"
+      ];
+      return lovePhrases[Math.floor(Math.random() * lovePhrases.length)];
+    }
+
+    if (lowerVerse.includes('motivação') || lowerVerse.includes('inspiração') || lowerVerse.includes('força')) {
+      // Frases motivacionais
+      const motivationPhrases = [
+        "Acredite em si mesmo e tudo será possível! 💪",
+        "Cada desafio é uma oportunidade de crescimento. 🌱",
+        "Sua determinação é maior que qualquer obstáculo. 🏔️",
+        "O sucesso começa com um passo corajoso. 👣",
+        "Você tem o poder de transformar seus sonhos em realidade. ✨",
+        "Nunca desista dos seus objetivos. Persistência vence tudo! 🎯",
+        "Sua força interior é infinita. Confie nela! 💎",
+        "Cada dia é uma nova chance de brilhar. ☀️",
+        "Você é capaz de alcançar tudo que deseja. 🚀",
+        "A motivação vem de dentro, acredite no seu potencial! 🔥"
+      ];
+      return motivationPhrases[Math.floor(Math.random() * motivationPhrases.length)];
+    }
+
+    if (lowerVerse.includes('gratidão') || lowerVerse.includes('obrigado') || lowerVerse.includes('agradecimento')) {
+      // Frases de gratidão
+      const gratitudePhrases = [
+        "A gratidão transforma o que temos em suficiente. 🙏",
+        "Obrigado pela vida e por todas as bênçãos recebidas. 🌟",
+        "A gratidão é a chave para uma vida plena. 💝",
+        "Valorize cada momento e cada pessoa ao seu lado. ❤️",
+        "A gratidão abre portas para mais felicidade. 🚪✨",
+        "Obrigado pelo amor, pela amizade e por tudo que me completa. 💕",
+        "A gratidão é o melhor presente que podemos dar. 🎁",
+        "Cada dia é uma oportunidade de agradecer. 🌅",
+        "Obrigado pela força e pela determinação que me guiam. 💪",
+        "A gratidão transforma desafios em lições valiosas. 📚"
+      ];
+      return gratitudePhrases[Math.floor(Math.random() * gratitudePhrases.length)];
+    }
+
+    if (lowerVerse.includes('bem estar') || lowerVerse.includes('bem-estar') || lowerVerse.includes('saúde') || lowerVerse.includes('relaxamento') || lowerVerse.includes('paz') || lowerVerse.includes('meditação')) {
+      // Frases de bem-estar
+      const wellnessPhrases = [
+        "O bem-estar começa com pequenos momentos de paz interior. 🧘",
+        "Cuide da sua mente, corpo e espírito todos os dias. 🌸",
+        "A paz interior é o maior presente que você pode dar a si mesmo. ✨",
+        "Pratique o autocuidado diariamente para uma vida plena. 💆",
+        "Sua saúde mental é tão importante quanto a física. 🧠❤️",
+        "Encontre equilíbrio entre trabalho e descanso. ⚖️",
+        "Respire fundo e deixe a tranquilidade te envolver. 🌊",
+        "O relaxamento é essencial para recarregar as energias. 🔋",
+        "Dedique tempo para cuidar da sua alma. 🌟",
+        "O bem-estar é uma jornada, não um destino. 🛤️"
+      ];
+      return wellnessPhrases[Math.floor(Math.random() * wellnessPhrases.length)];
+    }
+
+    // Para outros tipos, usar templates genéricos
+    const templates = [
+      `"${verse}" - Uma mensagem poderosa para hoje.`,
+      `Compartilhando: ${verse}`,
+      `Inspiração: ${verse.substring(0, 50)}...`,
+      `Reflexão diária: ${verse}`,
+      `Mensagem: ${verse.substring(0, 60)}...`
+    ];
+
+    return templates[Math.floor(Math.random() * templates.length)];
   }
 }
 
