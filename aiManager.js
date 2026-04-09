@@ -4,27 +4,99 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 class AIManager {
-  constructor(agentStatus) {
+  constructor(agentStatus, configManager) {
     this.agentStatus = agentStatus;
+    this.configManager = configManager;
     this.generatedDir = path.join(__dirname, 'generated');
     if (!fs.existsSync(this.generatedDir)) {
       fs.mkdirSync(this.generatedDir, { recursive: true });
     }
   }
 
-  // Gerar imagens locais com Canvas (sem APIs caras)
+  // Gerar imagens, preferindo fontes gratuitas externas antes do fallback local
   async generateImage(prompt) {
     this.agentStatus.setAIToolStatus('image-primary', 'loading');
-    
+
     try {
-      const imagePath = await this.generateLocalImage(prompt);
-      this.agentStatus.setAIToolStatus('image-primary', 'success', 'Canvas (Local)');
-      this.agentStatus.log(`Imagem gerada localmente: ${prompt.substring(0, 50)}...`);
+      const imagePath = await this.fetchFreeImage(prompt);
+      this.agentStatus.setAIToolStatus('image-primary', 'success', 'Stock Image (Free)');
+      this.agentStatus.log(`Imagem obtida de fonte gratuita`);
       return imagePath;
     } catch (error) {
-      this.agentStatus.log(`Erro ao gerar imagem: ${error.message}`);
+      this.agentStatus.log(`Falha ao obter imagem: ${error.message}. Usando geração local.`);
+    }
+
+    try {
+      const imagePath = await this.generateLocalImage(prompt);
+      this.agentStatus.setAIToolStatus('image-primary', 'success', 'Generated (Local)');
+      this.agentStatus.log(`Imagem gerada localmente`);
+      return imagePath;
+    } catch (error) {
+      this.agentStatus.log(`Erro ao gerar imagem local: ${error.message}`);
       return this.getDefaultImage();
     }
+  }
+
+  async fetchFreeImage(prompt) {
+    const keyword = prompt.trim().toLowerCase().replace(/[\s,/]+/g, '+');
+    const imageSource = this.configManager?.get('imageSource') || 'both';
+    
+    // Definir fontes com base na configuração, com fallback automático
+    const sources = [];
+    
+    if (imageSource === 'unsplash' || imageSource === 'both') {
+      sources.push({
+        name: 'unsplash',
+        url: `https://source.unsplash.com/1080x1920/?${encodeURIComponent(keyword)}`
+      });
+    }
+    
+    if (imageSource === 'loremflickr' || imageSource === 'both') {
+      sources.push({
+        name: 'loremflickr',
+        url: `https://loremflickr.com/1080/1920/${encodeURIComponent(keyword)}`
+      });
+    }
+    
+    // Sempre adicionar Pexels como terceira opção de fallback
+    sources.push({
+      name: 'pexels',
+      url: `https://images.pexels.com/search/${encodeURIComponent(prompt)}/?auto=compress&cs=tinysrgb&fit=max&w=1080&h=1920`
+    });
+
+    if (sources.length === 0) {
+      throw new Error('Nenhuma fonte de imagem configurada');
+    }
+
+    let lastError = null;
+    for (const source of sources) {
+      try {
+        const response = await fetch(source.url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Resposta HTTP ${response.status}`);
+        }
+
+        const buffer = Buffer.from(await response.arrayBuffer());
+        if (buffer.length < 1000) {
+          throw new Error('Imagem muito pequena ou vazia');
+        }
+
+        const imagePath = path.join(this.generatedDir, `${Date.now()}.jpg`);
+        fs.writeFileSync(imagePath, buffer);
+        this.agentStatus.log(`Imagem carregada com sucesso (tentativa ${sources.indexOf(source) + 1})`);
+        return imagePath;
+      } catch (error) {
+        lastError = error;
+        this.agentStatus.log(`Fonte ${source.name} não disponível, tentando próxima...`);
+      }
+    }
+
+    throw lastError || new Error('Nenhuma fonte de imagem respondeu corretamente');
   }
 
   async generateLocalImage(prompt) {
@@ -301,7 +373,7 @@ class AIManager {
         ctx.fill();
       }
 
-      // Texto padrão
+      // Texto padrão - neutro, sem expor automação
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 80px Arial';
       ctx.textAlign = 'center';
@@ -311,11 +383,11 @@ class AIManager {
       ctx.fillText('✨', 540, 400);
 
       ctx.font = 'bold 60px Arial';
-      ctx.fillText('Agente de IA', 540, 600);
+      ctx.fillText('Conteúdo', 540, 600);
 
       ctx.font = '40px Arial';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.fillText('Redes Sociais', 540, 720);
+      ctx.fillText('Exclusivo', 540, 720);
 
       const imagePath = path.join(this.generatedDir, 'default.png');
       const buffer = canvas.toBuffer('image/png');
@@ -442,12 +514,7 @@ class AIManager {
   }
 
   addTimestamp(ctx, canvas) {
-    const { width, height } = canvas;
-    ctx.font = '24px Arial';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.textAlign = 'center';
-    const timestamp = new Date().toLocaleTimeString('pt-BR');
-    ctx.fillText(`Gerado em ${timestamp}`, width / 2, height - 50);
+    // Removido: não adicionar marcas de geração/automação nas imagens
   }
 
   drawHeart(ctx, x, y, size) {

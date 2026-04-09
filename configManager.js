@@ -11,6 +11,7 @@ class ConfigManager {
       autoEdit: true,
       notifications: true,
       primaryApi: 'huggingface',
+      imageSource: 'both',
       networks: {
         facebook: false,
         instagram: false,
