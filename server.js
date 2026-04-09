@@ -6,8 +6,8 @@ const path = require('path');
 const cron = require('node-cron');
 
 const AgentStatus = require('./agentStatus');
-const AIManager = require('./aiManager');
 const ConfigManager = require('./configManager');
+const AIManager = require('./aiManager');
 const { runAutomation, NETWORKS } = require('./socialMedia');
 const { launchBrowser, saveCookies, loadCookies, clearCookies } = require('./services/browserUtils');
 
@@ -22,9 +22,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/generated', express.static(path.join(__dirname, 'generated')));
 
 // Instâncias
-const agentStatus = new AgentStatus(io);
-const aiManager = new AIManager(agentStatus);
 const configManager = new ConfigManager();
+const agentStatus = new AgentStatus(io);
+const aiManager = new AIManager(agentStatus, configManager);
 
 let isPaused = false;
 const connectedClients = new Set();
@@ -37,9 +37,14 @@ io.on('connection', (socket) => {
 
   // Enviar status actual
   agentStatus.broadcastStatus();
+  socket.emit('settings-data', configManager.config);
 
   socket.on('request-status', () => {
     agentStatus.broadcastStatus();
+  });
+
+  socket.on('request-settings', () => {
+    socket.emit('settings-data', configManager.config);
   });
 
   socket.on('test-post', async () => {
@@ -229,7 +234,7 @@ async function postDailyContent() {
 
     // Postar
     agentStatus.log('Iniciando automação das redes sociais');
-    await runAutomation(imageUrl, videoPath, verse, agentStatus);
+    await runAutomation(imageUrl, videoPath, description, agentStatus);
 
     agentStatus.updateStatus('idle', 'Nenhuma');
     agentStatus.updateTask('Pronto', 100, 'Postagem concluída com sucesso!');
