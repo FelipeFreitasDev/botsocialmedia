@@ -105,6 +105,34 @@ class AIManager {
     }
   }
 
+  async generateAudioFromText(text) {
+    try {
+      this.agentStatus.log(`Gerando áudio automático a partir do texto`);
+      const cleanText = text.replace(/\s+/g, ' ').trim().substring(0, 250);
+      const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=pt-BR&q=${encodeURIComponent(cleanText)}`;
+      const response = await fetch(ttsUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        timeout: 60000
+      });
+      if (!response.ok) {
+        throw new Error(`TTS respondeu com status ${response.status}`);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.length < 1000) {
+        throw new Error('Áudio gerado muito pequeno ou inválido');
+      }
+      const audioPath = path.join(this.generatedDir, `audio-${Date.now()}.mp3`);
+      fs.writeFileSync(audioPath, buffer);
+      this.agentStatus.log(`Áudio gerado com sucesso`);
+      return audioPath;
+    } catch (error) {
+      this.agentStatus.log(`Erro ao gerar áudio automático: ${error.message}`);
+      throw error;
+    }
+  }
+
   // Adicionar texto sobre uma imagem existente
   async addTextToImage(imagePath, text) {
     try {
@@ -115,42 +143,54 @@ class AIManager {
       // Desenhar a imagem como fundo
       ctx.drawImage(image, 0, 0);
 
-      // Adicionar overlay semi-transparente para melhor legibilidade do texto
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-      ctx.fillRect(0, canvas.height * 0.6, canvas.width, canvas.height * 0.4);
-
-      // Adicionar texto branco
+      // Configurar estilo do texto
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 48px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetY = 3;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetY = 4;
 
-      // Quebrar texto em linhas se necessário
-      const maxChars = 30;
-      const lines = [];
+      // Ajustar tamanho de fonte baseado na largura da imagem
+      const fontSize = Math.max(32, Math.min(60, canvas.width / 18));
+      ctx.font = `bold ${fontSize}px Arial`;
+
+      // Quebrar texto em linhas com base na largura disponível
+      const maxTextWidth = canvas.width * 0.82;
       const words = text.split(' ');
+      const lines = [];
       let currentLine = '';
 
       for (const word of words) {
-        if ((currentLine + word).length > maxChars) {
-          if (currentLine) lines.push(currentLine);
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxTextWidth && currentLine) {
+          lines.push(currentLine);
           currentLine = word;
         } else {
-          currentLine += (currentLine ? ' ' : '') + word;
+          currentLine = testLine;
         }
       }
       if (currentLine) lines.push(currentLine);
 
-      // Desenhar linhas de texto
-      const lineHeight = 60;
-      const startY = canvas.height - (lines.length * lineHeight) / 2 - 40;
+      // Ajustar altura do bloco de texto
+      const lineHeight = fontSize * 1.2;
+      const textBlockHeight = lines.length * lineHeight + 24;
+      const overlayHeight = Math.min(textBlockHeight + 40, canvas.height * 0.35);
+      const overlayY = canvas.height - overlayHeight - 30;
 
-      lines.forEach((line, index) => {
-        ctx.fillText(line, canvas.width / 2, startY + index * lineHeight);
-      });
+      // Adicionar overlay semi-transparente para legibilidade
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillRect(0, overlayY, canvas.width, overlayHeight);
+
+      // Desenhar linhas de texto dentro do overlay
+      ctx.fillStyle = '#ffffff';
+      const startY = overlayY + (overlayHeight - lines.length * lineHeight) / 2;
+      for (let index = 0; index < lines.length; index++) {
+        const line = lines[index];
+        const y = startY + index * lineHeight;
+        ctx.fillText(line, canvas.width / 2, y);
+      }
 
       // Salvar imagem com texto
       const textImagePath = imagePath.replace(/\.[^/.]+$/, '-com-texto.png');
@@ -529,7 +569,7 @@ class AIManager {
   }
 
   // Gerar vídeo com FFmpeg
-  async generateVideo(imagePath, verse) {
+  async generateVideo(imagePath, verse, audioPath = null) {
     this.agentStatus.setAIToolStatus('video', 'loading');
 
     try {
@@ -537,16 +577,30 @@ class AIManager {
       const videoPath = path.join(this.generatedDir, `${Date.now()}.mp4`);
 
       return new Promise((resolve, reject) => {
-        const ffmpegProcess = spawn(ffmpeg, [
+        const args = [
           '-loop', '1',
-          '-i', imagePath,
+          '-i', imagePath
+        ];
+
+        if (audioPath) {
+          args.push('-i', audioPath);
+        }
+
+        args.push(
           '-c:v', 'libx264',
           '-preset', 'fast',
           '-t', '15',
           '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2',
-          '-pix_fmt', 'yuv420p',
-          videoPath
-        ]);
+          '-pix_fmt', 'yuv420p'
+        );
+
+        if (audioPath) {
+          args.push('-c:a', 'aac', '-b:a', '128k');
+        }
+
+        args.push(videoPath);
+
+        const ffmpegProcess = spawn(ffmpeg, args);
 
         ffmpegProcess.stderr.on('data', (chunk) => {
           const message = chunk.toString();

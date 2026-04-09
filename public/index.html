@@ -127,8 +127,24 @@
             <textarea id="command-image-prompt" rows="3" placeholder="Descreva o que deve aparecer na imagem"></textarea>
           </div>
           <div class="command-row">
+            <label for="command-image-file">Foto existente</label>
+            <input type="file" id="command-image-file" accept="image/*">
+            <small>Use uma foto do computador ou celular para adicionar sua legenda.</small>
+          </div>
+          <div class="command-row">
             <label for="command-video-prompt">Descrição do vídeo</label>
             <textarea id="command-video-prompt" rows="3" placeholder="Descreva o estilo do vídeo"></textarea>
+          </div>
+          <div class="command-row">
+            <label for="command-audio-file">Áudio manual</label>
+            <input type="file" id="command-audio-file" accept="audio/*">
+            <small>Envie um arquivo de áudio para usar no vídeo.</small>
+          </div>
+          <div class="command-row">
+            <label>
+              <input type="checkbox" id="command-audio-auto">
+              Gerar áudio automático a partir da legenda/vídeo
+            </label>
           </div>
           <div class="command-row">
             <label for="command-caption">Legenda / descrição</label>

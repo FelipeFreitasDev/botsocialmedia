@@ -559,19 +559,43 @@ document.getElementById('btn-test-post').addEventListener('click', () => {
   addLog('Testando postagem...');
 });
 
-document.getElementById('btn-generate-preview').addEventListener('click', () => {
+async function getFileData(fileInputId) {
+  const input = document.getElementById(fileInputId);
+  if (!input || !input.files || input.files.length === 0) return null;
+  const file = input.files[0];
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({
+      name: file.name,
+      type: file.type,
+      data: reader.result
+    });
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('btn-generate-preview').addEventListener('click', async () => {
   const imagePrompt = document.getElementById('command-image-prompt').value.trim();
   const videoPrompt = document.getElementById('command-video-prompt').value.trim();
   const caption = document.getElementById('command-caption').value.trim();
-  socket.emit('generate-preview', { imagePrompt, videoPrompt, caption });
+  const imageFile = await getFileData('command-image-file');
+  const audioFile = await getFileData('command-audio-file');
+  const audioAuto = document.getElementById('command-audio-auto').checked;
+
+  socket.emit('generate-preview', { imagePrompt, videoPrompt, caption, imageFile, audioFile, audioAuto });
   addLog('Solicitando prévia...');
 });
 
-document.getElementById('btn-post-now').addEventListener('click', () => {
+document.getElementById('btn-post-now').addEventListener('click', async () => {
   const imagePrompt = document.getElementById('command-image-prompt').value.trim();
   const videoPrompt = document.getElementById('command-video-prompt').value.trim();
   const caption = document.getElementById('command-caption').value.trim();
-  socket.emit('post-now', { imagePrompt, videoPrompt, caption });
+  const imageFile = await getFileData('command-image-file');
+  const audioFile = await getFileData('command-audio-file');
+  const audioAuto = document.getElementById('command-audio-auto').checked;
+
+  socket.emit('post-now', { imagePrompt, videoPrompt, caption, imageFile, audioFile, audioAuto });
   addLog('Solicitando postagem direta...');
 });
 

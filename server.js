@@ -3,6 +3,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 const cron = require('node-cron');
 
 const AgentStatus = require('./agentStatus');
@@ -25,6 +26,42 @@ app.use('/generated', express.static(path.join(__dirname, 'generated')));
 const configManager = new ConfigManager();
 const agentStatus = new AgentStatus(io);
 const aiManager = new AIManager(agentStatus, configManager);
+
+function getFileExtension(filename, mimeType) {
+  const ext = path.extname(filename || '').toLowerCase();
+  if (ext) return ext;
+  const mimeMap = {
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/webp': '.webp',
+    'audio/mpeg': '.mp3',
+    'audio/mp3': '.mp3',
+    'audio/wav': '.wav',
+    'audio/x-wav': '.wav',
+    'audio/ogg': '.ogg',
+    'audio/webm': '.webm',
+    'audio/mp4': '.m4a'
+  };
+  return mimeMap[mimeType] || '.bin';
+}
+
+function saveBase64File(base64Data, fileName) {
+  const matches = base64Data.match(/^data:(.+);base64,(.+)$/);
+  if (!matches) throw new Error('Formato de arquivo inválido');
+  const mimeType = matches[1];
+  const buffer = Buffer.from(matches[2], 'base64');
+  const ext = getFileExtension(fileName, mimeType);
+  const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+  const outputPath = path.join(__dirname, 'generated', safeName);
+  fs.writeFileSync(outputPath, buffer);
+  return outputPath;
+}
+
+async function processUploadedAsset(asset) {
+  if (!asset || !asset.data) return null;
+  return saveBase64File(asset.data, asset.name || 'upload');
+}
 
 let isPaused = false;
 const connectedClients = new Set();
@@ -134,15 +171,38 @@ io.on('connection', (socket) => {
   });
 
   socket.on('generate-preview', async (payload) => {
-    const { imagePrompt, videoPrompt, caption } = payload;
+    const { imagePrompt, videoPrompt, caption, imageFile, audioFile, audioAuto } = payload;
     agentStatus.log('Gerando prévia de conteúdo...');
     agentStatus.updateStatus('working', 'Gerando prévia');
 
     try {
       const prompt = imagePrompt || caption || 'Imagem inspiradora com tema bíblico';
-      const imagePath = await aiManager.generateImage(prompt);
-      const videoPath = await aiManager.generateVideo(imagePath, videoPrompt || prompt);
-      const description = caption || await aiManager.generateText(prompt);
+      let imagePath = null;
+      let audioPath = null;
+      let description = caption;
+
+      if (imageFile) {
+        imagePath = await processUploadedAsset(imageFile);
+        agentStatus.log('Imagem enviada pelo usuário carregada');
+      }
+
+      if (!description) {
+        description = await aiManager.generateText(prompt);
+      }
+
+      if (audioFile) {
+        audioPath = await processUploadedAsset(audioFile);
+        agentStatus.log('Áudio enviado pelo usuário carregado');
+      } else if (audioAuto) {
+        audioPath = await aiManager.generateAudioFromText(description || prompt);
+        agentStatus.log('Áudio automático gerado');
+      }
+
+      if (!imagePath) {
+        imagePath = await aiManager.generateImage(prompt);
+      }
+
+      const videoPath = await aiManager.generateVideo(imagePath, videoPrompt || prompt, audioPath);
 
       const imageUrl = `/generated/${path.basename(imagePath)}`;
       const videoUrl = `/generated/${path.basename(videoPath)}`;
@@ -164,15 +224,34 @@ io.on('connection', (socket) => {
   });
 
   socket.on('post-now', async (payload) => {
-    const { imagePrompt, videoPrompt, caption } = payload;
+    const { imagePrompt, videoPrompt, caption, imageFile, audioFile, audioAuto } = payload;
     agentStatus.log('Iniciando postagem direta...');
     agentStatus.updateStatus('working', 'Postando agora');
 
     try {
       const prompt = imagePrompt || caption || 'Imagem inspiradora com tema bíblico';
-      const imagePath = await aiManager.generateImage(prompt);
-      const videoPath = await aiManager.generateVideo(imagePath, videoPrompt || prompt);
-      const description = caption || await aiManager.generateText(prompt);
+      let imagePath = null;
+      let audioPath = null;
+      let description = caption;
+
+      if (imageFile) {
+        imagePath = await processUploadedAsset(imageFile);
+        agentStatus.log('Imagem enviada pelo usuário carregada');
+      }
+      if (!description) {
+        description = await aiManager.generateText(prompt);
+      }
+      if (audioFile) {
+        audioPath = await processUploadedAsset(audioFile);
+        agentStatus.log('Áudio enviado pelo usuário carregado');
+      } else if (audioAuto) {
+        audioPath = await aiManager.generateAudioFromText(description || prompt);
+        agentStatus.log('Áudio automático gerado');
+      }
+      if (!imagePath) {
+        imagePath = await aiManager.generateImage(prompt);
+      }
+      const videoPath = await aiManager.generateVideo(imagePath, videoPrompt || prompt, audioPath);
 
       await runAutomation(imagePath, videoPath, description, agentStatus);
       agentStatus.updateStatus('idle', 'Nenhuma');
