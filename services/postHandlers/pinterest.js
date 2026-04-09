@@ -1,4 +1,4 @@
-const { waitForNavigationOrTimeout, clickButtonByText } = require('../browserUtils');
+const { waitForNavigationOrTimeout, clickButtonByText, fillAndValidateField } = require('../browserUtils');
 
 async function postPinterest(page, imagePath, caption, agentStatus) {
   agentStatus.updateTask('Postando no Pinterest...', 96);
@@ -77,9 +77,7 @@ async function postPinterest(page, imagePath, caption, agentStatus) {
 
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Preencher descrição com múltiplas tentativas
-    let descAdded = false;
-    
+    // Preencher descrição com validação
     const descSelectors = [
       'textarea[name="description"]',
       'textarea[aria-label*="Descrição"]',
@@ -92,59 +90,10 @@ async function postPinterest(page, imagePath, caption, agentStatus) {
       'div[contenteditable="true"]'
     ];
 
-    for (const selector of descSelectors) {
-      try {
-        const element = await page.$(selector);
-        if (element) {
-          await element.click({ delay: 100 });
-          await element.focus();
-          
-          // Limpar
-          await page.keyboard.press('Control+A');
-          await page.keyboard.press('Delete');
-          
-          // Digitar
-          await page.keyboard.type(caption, { delay: 10 });
-          
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          agentStatus.log(`✅ Descrição adicionada: "${caption.substring(0, 50)}..."`);
-          descAdded = true;
-          break;
-        }
-      } catch (e) {
-        agentStatus.log(`❌ Seletor ${selector} falhou`);
-      }
-    }
-
-    // Fallback: usar evaluate
-    if (!descAdded) {
-      try {
-        await page.evaluate((text) => {
-          const elements = document.querySelectorAll('textarea, div[contenteditable]');
-          for (let elem of elements) {
-            if (elem.offsetHeight > 0) {
-              if (elem.tagName === 'TEXTAREA' || elem.contentEditable === 'true') {
-                elem.focus();
-                elem.textContent = text;
-                elem.value = text;
-                elem.dispatchEvent(new Event('input', { bubbles: true }));
-                elem.dispatchEvent(new Event('change', { bubbles: true }));
-                return true;
-              }
-            }
-          }
-          return false;
-        }, caption);
-        
-        agentStatus.log(`✅ Descrição adicionada via evaluate: "${caption.substring(0, 50)}..."`);
-        descAdded = true;
-      } catch (e) {
-        agentStatus.log(`⚠️ Erro ao adicionar descrição: ${e.message}`);
-      }
-    }
-
-    if (!descAdded) {
-      agentStatus.log(`⚠️ Não conseguiu adicionar descrição, tentando publicar mesmo assim`);
+    const descFilled = await fillAndValidateField(page, descSelectors, caption, agentStatus);
+    
+    if (!descFilled) {
+      agentStatus.log(`⚠️ Aviso: Descrição pode não ter sido preenchida corretamente`);
     }
 
     await new Promise(resolve => setTimeout(resolve, 2000));

@@ -124,6 +124,86 @@ async function getElementsByXPath(page, xpath) {
   }, xpath);
 }
 
+async function fillAndValidateField(page, selectors, text, agentStatus) {
+  /**
+   * Tenta preencher um campo de texto com múltiplos seletores e valida se foi preenchido
+   * @param {Page} page - Página do Puppeteer
+   * @param {string|Array} selectors - Seletor ou array de seletores CSS
+   * @param {string} text - Texto a preencher
+   * @param {Object} agentStatus - Objeto para logging
+   * @returns {boolean} - True se conseguiu preencher e validar, False caso contrário
+   */
+  
+  const selectorList = Array.isArray(selectors) ? selectors : [selectors];
+  
+  for (const selector of selectorList) {
+    try {
+      const element = await page.$(selector);
+      if (!element) continue;
+      
+      // Clicar no elemento
+      await element.click({ delay: 100 });
+      await element.focus();
+      
+      // Aguardar visibilidade
+      await page.waitForTimeout(200);
+      
+      // Limpar campo
+      await page.keyboard.press('Control+A');
+      await page.keyboard.press('Delete');
+      await page.waitForTimeout(100);
+      
+      // Digitar texto
+      await page.keyboard.type(text, { delay: 5 });
+      await page.waitForTimeout(500);
+      
+      // Validar se texto foi preenchido
+      const filledText = await page.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        return el?.textContent || el?.value || '';
+      }, selector);
+      
+      if (filledText && filledText.includes(text.substring(0, 10))) {
+        agentStatus.log(`✅ Campo preenchido com: "${text.substring(0, 40)}..."`);
+        return true;
+      }
+    } catch (e) {
+      // Continuar para próximo seletor
+    }
+  }
+  
+  // Fallback: usar evaluate
+  try {
+    const success = await page.evaluate((textToFill) => {
+      const elements = document.querySelectorAll('textarea, div[contenteditable], input[type="text"]');
+      for (let elem of elements) {
+        if (elem.offsetHeight > 0 && (elem.tagName === 'TEXTAREA' || elem.contentEditable === 'true')) {
+          elem.focus();
+          elem.textContent = textToFill;
+          elem.value = textToFill;
+          elem.dispatchEvent(new Event('input', { bubbles: true }));
+          elem.dispatchEvent(new Event('change', { bubbles: true }));
+          
+          // Validar
+          const currentText = elem.textContent || elem.value;
+          return currentText.includes(textToFill.substring(0, 10));
+        }
+      }
+      return false;
+    }, text);
+    
+    if (success) {
+      agentStatus.log(`✅ Campo preenchido via evaluate: "${text.substring(0, 40)}..."`);
+      return true;
+    }
+  } catch (e) {
+    agentStatus.log(`⚠️ Erro ao validar preenchimento: ${e.message}`);
+  }
+  
+  agentStatus.log(`❌ Não conseguiu preencher campo. Texto pode estar vazio.`);
+  return false;
+}
+
 module.exports = {
   launchBrowser,
   saveCookies,
@@ -132,5 +212,6 @@ module.exports = {
   waitForNavigationOrTimeout,
   clickButtonByText,
   uploadFileInput,
-  getElementsByXPath
+  getElementsByXPath,
+  fillAndValidateField
 };

@@ -1,4 +1,4 @@
-const { waitForNavigationOrTimeout } = require('../browserUtils');
+const { waitForNavigationOrTimeout, fillAndValidateField } = require('../browserUtils');
 
 async function postFacebook(page, imagePath, caption, agentStatus) {
   agentStatus.updateTask('Postando no Facebook...', 92);
@@ -69,10 +69,7 @@ async function postFacebook(page, imagePath, caption, agentStatus) {
 
     await new Promise(resolve => setTimeout(resolve, 3000));
 
-    // Preencher caption com múltiplas tentativas
-    let captionAdded = false;
-    
-    // Método 1: Procurar textarea ou div[contenteditable]
+    // Preencher caption com validação
     const captionSelectors = [
       'textarea[name="xc_message"]',
       'textarea[aria-label*="Mensagem"]',
@@ -82,59 +79,10 @@ async function postFacebook(page, imagePath, caption, agentStatus) {
       'div[contenteditable="true"]'
     ];
 
-    for (const selector of captionSelectors) {
-      try {
-        const element = await page.$(selector);
-        if (element) {
-          await element.click({ delay: 100 });
-          await element.focus();
-          
-          // Limpar campo antes de escrever
-          await page.keyboard.press('Control+A');
-          await page.keyboard.press('Delete');
-          
-          // Digitar legenda com delay menor para ir mais rápido
-          await page.keyboard.type(caption, { delay: 10 });
-          
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          agentStatus.log(`✅ Legenda adicionada: "${caption.substring(0, 50)}..."`);
-          captionAdded = true;
-          break;
-        }
-      } catch (e) {
-        agentStatus.log(`❌ Seletor ${selector} falhou`);
-      }
-    }
-
-    // Método 2: Se ainda não adicionou, usar evaluate
-    if (!captionAdded) {
-      try {
-        await page.evaluate((text) => {
-          const elements = document.querySelectorAll('textarea, div[contenteditable], input[type="text"]');
-          for (let elem of elements) {
-            if (elem.offsetHeight > 0) { // Verificar se é visível
-              if (elem.tagName === 'TEXTAREA' || elem.contentEditable === 'true') {
-                elem.focus();
-                elem.textContent = text;
-                elem.value = text;
-                elem.dispatchEvent(new Event('input', { bubbles: true }));
-                elem.dispatchEvent(new Event('change', { bubbles: true }));
-                return true;
-              }
-            }
-          }
-          return false;
-        }, caption);
-        
-        agentStatus.log(`✅ Legenda adicionada via evaluate: "${caption.substring(0, 50)}..."`);
-        captionAdded = true;
-      } catch (e) {
-        agentStatus.log(`⚠️ Erro ao adicionar legenda: ${e.message}`);
-      }
-    }
-
-    if (!captionAdded) {
-      agentStatus.log(`⚠️ Não conseguiu adicionar legenda, tentando prosseguir mesmo assim`);
+    const captionFilled = await fillAndValidateField(page, captionSelectors, caption, agentStatus);
+    
+    if (!captionFilled) {
+      agentStatus.log(`⚠️ Aviso: Legenda pode não ter sido preenchida corretamente`);
     }
 
     await new Promise(resolve => setTimeout(resolve, 2000));
